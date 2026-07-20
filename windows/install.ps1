@@ -37,12 +37,20 @@ Write-Host "Python  : $python"
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
 if (-not (Test-Path $ScriptPath)) {
+    # 1) Try sibling file (local / scp install)
     $src = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'sleep-listener.py'
     if (Test-Path $src) {
         Copy-Item $src $ScriptPath
     } else {
-        Write-Error "sleep-listener.py not found next to install.ps1."
-        exit 1
+        # 2) Download from GitHub (irm | iex one-liner path)
+        Write-Host "Downloading sleep-listener.py from GitHub…"
+        $url = 'https://raw.githubusercontent.com/Antoinenz/wake-server/main/windows/sleep-listener.py'
+        try {
+            Invoke-WebRequest -Uri $url -OutFile $ScriptPath -UseBasicParsing
+        } catch {
+            Write-Error "Could not download sleep-listener.py: $_"
+            exit 1
+        }
     }
 }
 Write-Host "Script  : $ScriptPath"
