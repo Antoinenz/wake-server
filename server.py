@@ -212,6 +212,7 @@ HTML = r"""
   <meta name="apple-mobile-web-app-title" content="Wake">
   <meta name="theme-color" content="#ffffff">
   <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/icon-touch.svg">
   <title>Wake</title>
   <style>
@@ -275,10 +276,22 @@ HTML = r"""
     .pc-btns button:active{background:#ececec}
     .pc-msg{font-size:.75rem;color:#bbb;min-height:1.2em;margin-bottom:1.25rem}
     .pc-msg.err{color:#c0392b}
-    .pc-links{display:flex;gap:1.25rem;justify-content:center;font-size:.73rem}
-    .pc-links a{color:#ccc;cursor:pointer;text-decoration:none}
-    .pc-links a:hover{color:#999}
     .empty-state{text-align:center;color:#ccc;line-height:1.9}
+
+    /* ── sidebar three-dot menu ── */
+    .pc-menu-btn{flex-shrink:0;background:none;border:none;color:#bbb;cursor:pointer;
+                 padding:.1rem .35rem;border-radius:4px;font-size:1rem;line-height:1;
+                 opacity:0;transition:opacity .1s}
+    .pc-item:hover .pc-menu-btn,.pc-item.active .pc-menu-btn{opacity:1}
+    .pc-menu-btn:hover{background:#eee;color:#777}
+    .ctx-menu{position:fixed;z-index:400;background:#fff;border:1px solid #e0e0e0;
+              border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.1);
+              min-width:140px;padding:.3rem 0;display:none}
+    .ctx-menu.open{display:block}
+    .ctx-item{display:block;width:100%;padding:.48rem 1rem;background:none;border:none;
+              text-align:left;font-size:.82rem;color:#333;cursor:pointer;white-space:nowrap}
+    .ctx-item:hover{background:#f5f5f5}
+    .ctx-item.danger{color:#c0392b}
     .empty-state a{color:#bbb;cursor:pointer;text-decoration:underline}
 
     /* ── overlay / modal ── */
@@ -382,6 +395,9 @@ HTML = r"""
     </main>
   </div>
 
+  <!-- Context menu -->
+  <div class="ctx-menu" id="ctxMenu"></div>
+
   <!-- Add PC modal -->
   <div class="overlay hidden" id="overlay" onclick="overlayClick(event)">
     <div class="modal">
@@ -458,9 +474,42 @@ HTML = r"""
       return '<li class="pc-item' + (p.id === sel ? ' active' : '') + '"'
            + ' onclick="selectPc(\'' + p.id + '\')">'
            + '<span class="' + cls + '" id="sd-' + p.id + '"></span>'
-           + '<span class="pc-label">' + esc(p.name) + '</span></li>';
+           + '<span class="pc-label">' + esc(p.name) + '</span>'
+           + '<button class="pc-menu-btn" onclick="openCtxMenu(\'' + p.id + '\',event)">&#x22EF;</button>'
+           + '</li>';
     }).join('');
   }
+
+  // ── Context menu ──────────────────────────────────────────────────────────────
+
+  let _ctxId = null;
+
+  function openCtxMenu(id, e) {
+    e.stopPropagation();
+    const menu = $('ctxMenu');
+    if (_ctxId === id && menu.classList.contains('open')) { closeCtxMenu(); return; }
+    _ctxId = id;
+    menu.innerHTML =
+      '<button class="ctx-item" onclick="ctxRename()">Rename</button>'
+    + '<button class="ctx-item danger" onclick="ctxRemove()">Remove</button>';
+    menu.classList.add('open');
+    const r = e.currentTarget.getBoundingClientRect();
+    const mw = 148;
+    menu.style.top  = (r.bottom + 4) + 'px';
+    menu.style.left = Math.max(4, r.right - mw) + 'px';
+  }
+
+  function closeCtxMenu() { _ctxId = null; $('ctxMenu').classList.remove('open'); }
+
+  function ctxRename() {
+    const id = _ctxId; closeCtxMenu();
+    if (sel !== id) { sel = id; renderSidebar(); renderMain(); }
+    requestAnimationFrame(() => { const el = $('pcName'); if (el) startRename(id, el); });
+  }
+
+  function ctxRemove() { const id = _ctxId; closeCtxMenu(); removePc(id); }
+
+  document.addEventListener('click', closeCtxMenu);
 
   function selectPc(id) {
     sel = id; renderSidebar(); renderMain();
@@ -496,10 +545,7 @@ HTML = r"""
     + '<button onclick="doSleep(\'' + pc.id + '\')">Sleep</button>'
     + '</div>'
     + '<p class="pc-msg" id="pmsg"></p>'
-    + '<div class="pc-links">'
-    + '<a onclick="startRename(\'' + pc.id + '\', $(\'pcName\'))">Rename</a>'
-    + '<a onclick="removePc(\'' + pc.id + '\')">Remove</a>'
-    + '</div></div></div>';
+    + '</div></div>';
   }
 
   // ── Wake ──────────────────────────────────────────────────────────────────────
@@ -768,6 +814,13 @@ MANIFEST = json.dumps({
     ],
 })
 
+FAVICON_SVG = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+    '<rect width="32" height="32" rx="7" fill="#111"/>'
+    '<polygon points="19,3 9,18 16,18 13,29 23,14 16,14" fill="#fff"/>'
+    '</svg>'
+)
+
 ICON_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
     '<rect width="100" height="100" rx="22" fill="#111"/>'
@@ -824,6 +877,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     _STATIC = {
         '/':               ('text/html; charset=utf-8',  lambda: HTML.encode()),
         '/manifest.json':  ('application/manifest+json', lambda: MANIFEST.encode()),
+        '/favicon.svg':    ('image/svg+xml',             lambda: FAVICON_SVG.encode()),
         '/icon.svg':       ('image/svg+xml',             lambda: ICON_SVG.encode()),
         '/icon-touch.svg': ('image/svg+xml',             lambda: ICON_TOUCH_SVG.encode()),
         '/sw.js':          ('application/javascript',    lambda: SW_JS.encode()),
