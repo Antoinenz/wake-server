@@ -1,0 +1,12 @@
+{
+  "server_port": 8081,
+  "pcs": [
+    {
+      "id": "gaming-pc",
+      "name": "Gaming PC",
+      "ip": "192.168.1.104",
+      "mac": "40:8D:5C:1B:71:58",
+      "sleep_port": 8765
+    }
+  ]
+}
