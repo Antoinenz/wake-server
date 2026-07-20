@@ -740,7 +740,13 @@ HTML = """\
     return e.message || 'Unknown error';
   }
 
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (reloaded) return; reloaded = true; location.reload();
+    });
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
   connect();
   </script>
 </body>
@@ -776,9 +782,19 @@ ICON_TOUCH_SVG = (
 )
 
 SW_JS = """\
-const V='wake-v2';
-self.addEventListener('install',e=>e.waitUntil(caches.open(V).then(c=>c.add('/'))));
+const V='wake-v3';
+self.addEventListener('install',e=>{
+  self.skipWaiting();
+  e.waitUntil(caches.open(V).then(c=>c.add('/')));
+});
+self.addEventListener('activate',e=>e.waitUntil(
+  caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k))))
+   .then(()=>self.clients.claim())
+));
 self.addEventListener('fetch',e=>{
+  const u=new URL(e.request.url);
+  // Never intercept SSE or API — SW buffering breaks streaming
+  if(u.pathname==='/events'||u.pathname.startsWith('/api/'))return;
   if(e.request.method!=='GET')return;
   e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
 });"""
